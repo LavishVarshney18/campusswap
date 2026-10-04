@@ -9,8 +9,9 @@ CampusSwap is a student-only marketplace for finding academic resources from peo
 - Create, edit, and manage listings, with a live form preview
 - Buy, rent, and swap flows with seller contact details for handover
 - Open request board with direct email contact and owner fulfillment
-- My Activity tabs for listings, requests, and deals, including rental due dates
-- Demo seed data and responsive dark interface
+- Real-time in-app notifications for sellers when buyers request items
+- My Activity tabs for managing listings, requests, deals, and revoking pending requests
+- Demo seed data and a vibrant, brutalist-style responsive interface
 
 ## Tech Stack
 
@@ -73,6 +74,6 @@ All accounts use the password `demo1234`:
 
 - Verify campus email ownership and support institution-managed domain lists
 - Add moderation and reporting for listings and requests
-- Add seller/buyer deal acceptance and rental return confirmation
-- Add optional listing photos and in-app notifications
+- Add buyer deal acceptance and rental return confirmation
+- Add optional listing photos
 - Move from the local SQLite file to a hosted database for multi-campus deployment

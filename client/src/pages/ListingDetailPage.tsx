@@ -16,6 +16,7 @@ import {
   AlertCircle,
   X,
   Copy,
+  Undo2,
 } from 'lucide-react';
 import type { Listing, Transaction } from '../types';
 import { CATEGORY_META, MODE_META, CONDITION_LABELS } from '../lib/constants';
@@ -50,6 +51,8 @@ export default function ListingDetailPage() {
     sellerEmail: string;
   } | null>(null);
   const [actionError, setActionError] = useState('');
+  const [myTransaction, setMyTransaction] = useState<Transaction | null>(null);
+  const [revoking, setRevoking] = useState(false);
 
   const fetchListing = useCallback((showLoading = true) => {
     if (!id) return;
@@ -76,6 +79,18 @@ export default function ListingDetailPage() {
   useEffect(() => {
     fetchListing(false);
   }, [fetchListing]);
+
+  // Fetch current user's pending transaction for this listing (if any)
+  useEffect(() => {
+    if (!isAuthenticated || !id) return;
+    api.get('/transactions/mine')
+      .then(r => {
+        const txs: Transaction[] = r.data.transactions;
+        const mine = txs.find(t => t.listing_id === Number(id)) ?? null;
+        setMyTransaction(mine);
+      })
+      .catch(() => {});
+  }, [id, isAuthenticated]);
 
   const handleDelete = async () => {
     if (!confirm('Delete this listing permanently?')) return;
@@ -129,14 +144,31 @@ export default function ListingDetailPage() {
     try {
       const res = await api.post('/transactions', { listingId: Number(id) });
       const tx = res.data.transaction as Transaction;
-      const email = tx.seller_email ?? '';
-      setConfirmModal({ transaction: tx, sellerEmail: email });
-      fetchListing();
+      setMyTransaction(tx);
+      setConfirmModal({ transaction: tx, sellerEmail: tx.seller_email ?? '' });
+      // Listing stays available — no refetch needed
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { error?: string } } };
       setActionError(ax.response?.data?.error ?? 'Could not complete this action.');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleRevoke = async () => {
+    if (!myTransaction) return;
+    if (!confirm('Revoke your request for this listing?')) return;
+    setRevoking(true);
+    try {
+      await api.delete(`/transactions/${myTransaction.id}`);
+      toast.success('Request revoked — listing is available again');
+      setMyTransaction(null);
+      fetchListing();
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { error?: string } } };
+      toast.error(ax.response?.data?.error ?? 'Failed to revoke request');
+    } finally {
+      setRevoking(false);
     }
   };
 
@@ -255,9 +287,8 @@ export default function ListingDetailPage() {
                 {CONDITION_LABELS[listing.condition]}
               </span>
               <span
-                className={`badge text-xs px-3 py-1 font-black uppercase tracking-wider border-black ${
-                  isAvailable ? 'bg-[#00D26A] text-black' : 'bg-[#FFE600] text-black'
-                }`}
+                className={`badge text-xs px-3 py-1 font-black uppercase tracking-wider border-black ${isAvailable ? 'bg-[#00D26A] text-black' : 'bg-[#FFE600] text-black'
+                  }`}
               >
                 {listing.status}
               </span>
@@ -361,19 +392,39 @@ export default function ListingDetailPage() {
                   )}
                 </>
               ) : isAvailable ? (
-                <Button
-                  type="button"
-                  onClick={handleTransact}
-                  isLoading={actionLoading}
-                  size="lg"
-                  fullWidth
-                  className="sm:flex-1"
-                  leftIcon={
-                    listing.mode === 'swap' ? <RefreshCw size={18} /> : <ShoppingBag size={18} />
-                  }
-                >
-                  {actionLabel}
-                </Button>
+                <>
+                  {myTransaction ? (
+                    <div className="flex flex-col sm:flex-row gap-3 flex-1">
+                      <div className="flex-1 p-4 bg-[#FFE600] border-[3px] border-black text-black text-sm font-black uppercase flex items-center justify-center gap-2">
+                        <CheckCircle2 size={16} />
+                        You've already requested this
+                      </div>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        onClick={handleRevoke}
+                        isLoading={revoking}
+                        leftIcon={<Undo2 size={16} />}
+                      >
+                        Revoke request
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      onClick={handleTransact}
+                      isLoading={actionLoading}
+                      size="lg"
+                      fullWidth
+                      className="sm:flex-1"
+                      leftIcon={
+                        listing.mode === 'swap' ? <RefreshCw size={18} /> : <ShoppingBag size={18} />
+                      }
+                    >
+                      {actionLabel}
+                    </Button>
+                  )}
+                </>
               ) : (
                 <p className="flex-1 p-4 bg-white border-[3px] border-black text-center text-black/60 text-sm font-medium">
                   This listing is no longer available.

@@ -12,10 +12,13 @@ import {
   LayoutDashboard,
   MapPin,
   GraduationCap,
-  ChevronDown
+  ChevronDown,
+  Bell
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import api from '../lib/api';
+import type { Transaction } from '../types';
 
 export default function Navbar() {
   const { user, logout, isAuthenticated } = useAuth();
@@ -25,18 +28,34 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationsRef = useRef<HTMLDivElement>(null);
+  const [notifications, setNotifications] = useState<Transaction[]>([]);
+
+  // Fetch notifications
+  useEffect(() => {
+    if (isAuthenticated) {
+      api.get('/transactions/incoming')
+        .then(res => setNotifications(res.data.transactions))
+        .catch(console.error);
+    }
+  }, [isAuthenticated, location.pathname]);
 
   // Close menus on route change
   useEffect(() => {
     setMobileMenuOpen(false);
     setAvatarMenuOpen(false);
+    setNotificationsOpen(false);
   }, [location.pathname]);
 
-  // Close avatar dropdown on outside click
+  // Close avatar and notifications dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (avatarMenuRef.current && !avatarMenuRef.current.contains(event.target as Node)) {
         setAvatarMenuOpen(false);
+      }
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setNotificationsOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -84,28 +103,14 @@ export default function Navbar() {
                 const Icon = link.icon;
                 const isActive = location.pathname === link.to;
 
-                if (link.highlight) {
-                  return (
-                    <Link
-                      key={link.to}
-                      to={link.to}
-                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-black text-black uppercase tracking-wide bg-black text-[#FFE600] border-[2px] border-black shadow-[3px_3px_0_0_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_#000] transition-all duration-100"
-                    >
-                      <PlusCircle size={14} />
-                      <span>{link.label}</span>
-                    </Link>
-                  );
-                }
-
                 return (
                   <Link
                     key={link.to}
                     to={link.to}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-black uppercase tracking-wide transition-all duration-100 border-[2px] ${
-                      isActive
+                    className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-black uppercase tracking-wide transition-all duration-100 border-[2px] ${isActive
                         ? 'bg-black text-[#FFE600] border-black shadow-[2px_2px_0_0_#000]'
                         : 'bg-transparent text-black border-transparent hover:border-black hover:shadow-[2px_2px_0_0_#000]'
-                    }`}
+                      }`}
                   >
                     <Icon size={14} />
                     <span>{link.label}</span>
@@ -117,7 +122,61 @@ export default function Navbar() {
             {/* Right Action / Avatar Area */}
             <div className="flex items-center gap-3">
               {isAuthenticated && user ? (
-                <div className="relative" ref={avatarMenuRef}>
+                <>
+                  <div className="relative" ref={notificationsRef}>
+                    <button
+                      onClick={() => setNotificationsOpen(!notificationsOpen)}
+                      className="p-2 border-[2px] border-black bg-white shadow-[2px_2px_0_0_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_#000] transition-all duration-100 cursor-pointer relative"
+                      aria-label="Notifications"
+                    >
+                      <Bell size={18} className="text-black" />
+                      {notifications.length > 0 && (
+                        <span className="absolute -top-2 -right-2 w-5 h-5 bg-[#FF6B9D] text-white border-[2px] border-black text-[10px] font-black flex items-center justify-center">
+                          {notifications.length}
+                        </span>
+                      )}
+                    </button>
+                    
+                    <AnimatePresence>
+                      {notificationsOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 6 }}
+                          transition={{ duration: 0.12 }}
+                          className="absolute right-0 mt-2 w-80 bg-[#FFF8E7] border-[3px] border-black shadow-[6px_6px_0_0_#000] z-50 overflow-hidden"
+                        >
+                          <div className="p-3 border-b-[3px] border-black bg-[#B79CFF]">
+                            <p className="text-sm font-black text-black uppercase">Notifications</p>
+                          </div>
+                          <div className="max-h-64 overflow-y-auto">
+                            {notifications.length === 0 ? (
+                              <div className="p-4 text-center text-sm font-medium text-black/60">
+                                No new notifications
+                              </div>
+                            ) : (
+                              notifications.map((notif) => (
+                                <Link
+                                  key={notif.id}
+                                  to="/my-listings"
+                                  className="block p-3 border-b-[2px] border-black/10 hover:bg-white transition-colors"
+                                >
+                                  <p className="text-xs font-bold text-black group-hover:text-[#00D26A] line-clamp-1">
+                                    <span className="uppercase text-[#FF6B9D]">{notif.type} request</span>
+                                  </p>
+                                  <p className="text-xs mt-0.5 truncate text-black/80 font-medium">
+                                    <span className="font-bold">{notif.buyer_name}</span> wants your "{notif.listing_title}"
+                                  </p>
+                                </Link>
+                              ))
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  
+                  <div className="relative" ref={avatarMenuRef}>
                   <button
                     onClick={() => setAvatarMenuOpen(!avatarMenuOpen)}
                     className="flex items-center gap-2 px-2 py-1.5 border-[2px] border-black bg-white shadow-[2px_2px_0_0_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_#000] transition-all duration-100 cursor-pointer"
@@ -176,7 +235,6 @@ export default function Navbar() {
                           </Link>
                         </div>
 
-                        {/* Sign Out Button */}
                         <button
                           onClick={handleLogout}
                           className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-black text-black uppercase tracking-wide hover:bg-[#FF6B9D] transition-colors cursor-pointer"
@@ -188,17 +246,18 @@ export default function Navbar() {
                     )}
                   </AnimatePresence>
                 </div>
-              ) : (
+              </>
+            ) : (
                 <div className="hidden lg:flex items-center gap-2">
                   <Link
                     to="/login"
-                    className="px-4 py-2 text-xs font-black text-black uppercase tracking-wide border-[2px] border-black hover:bg-white hover:shadow-[2px_2px_0_0_#000] transition-all"
+                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-black uppercase tracking-wide transition-all duration-100 border-[2px] bg-transparent text-black border-transparent hover:border-black hover:shadow-[2px_2px_0_0_#000]"
                   >
                     Log In
                   </Link>
                   <Link
                     to="/register"
-                    className="px-4 py-2 text-xs font-black text-black uppercase tracking-wide bg-black text-[#FFE600] border-[2px] border-black shadow-[3px_3px_0_0_#000] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_#000] transition-all duration-100"
+                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-black uppercase tracking-wide transition-all duration-100 border-[2px] bg-transparent text-black border-transparent hover:border-black hover:shadow-[2px_2px_0_0_#000]"
                   >
                     Sign Up
                   </Link>

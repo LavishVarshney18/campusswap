@@ -60,6 +60,7 @@ export interface Transaction {
   listing_title?: string;
   seller_email?: string;
   seller_name?: string;
+  buyer_name?: string;
 }
 
 export interface Stats {

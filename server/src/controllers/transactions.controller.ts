@@ -17,6 +17,8 @@ type TransactionRow = {
   // joined
   listing_title?: string;
   seller_email?: string;
+  seller_name?: string;
+  buyer_name?: string;
 };
 
 // ── POST /api/transactions ────────────────────────────────────────────────────
@@ -52,19 +54,14 @@ export function createTransaction(req: AuthRequest, res: Response): void {
       return;
     }
 
-    // Derive type and new status from the listing mode
+    // Derive type from the listing mode
     const typeMap: Record<string, string> = { sell: 'sale', rent: 'rent', swap: 'swap' };
-    const statusMap: Record<string, string> = { sell: 'sold', rent: 'rented', swap: 'swapped' };
     const type = typeMap[listing.mode] ?? 'sale';
-    const newListingStatus = statusMap[listing.mode] ?? 'sold';
 
     // due_date = now + 7 days for rentals
     const due_date = listing.mode === 'rent'
       ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
       : null;
-
-    // Mark listing unavailable first (prevents double-booking)
-    db.prepare('UPDATE listings SET status = ? WHERE id = ?').run(newListingStatus, listingId);
 
     // Insert transaction
     const info = db.prepare(`
@@ -102,4 +99,61 @@ export function getMyTransactions(req: AuthRequest, res: Response): void {
   `).all(req.userId!) as TransactionRow[];
 
   ok(res, { transactions });
+}
+
+// ── GET /api/transactions/incoming ────────────────────────────────────────────
+// Seller notifications: pending requests on the logged-in user's listings
+
+export function getIncomingRequests(req: AuthRequest, res: Response): void {
+  const transactions = db.prepare(`
+    SELECT t.*, l.title AS listing_title, u.name AS buyer_name
+    FROM transactions t
+    JOIN listings l ON l.id = t.listing_id
+    JOIN users   u ON u.id = t.buyer_id
+    WHERE t.seller_id = ? AND t.status = 'pending'
+    ORDER BY t.created_at DESC
+  `).all(req.userId!) as TransactionRow[];
+
+  ok(res, { transactions });
+}
+
+// ── DELETE /api/transactions/:id ──────────────────────────────────────────────
+// Allows the buyer to revoke their transaction/request if it is still pending
+
+export function deleteTransaction(req: AuthRequest, res: Response): void {
+  const transactionId = req.params.id;
+  const userId = req.userId!;
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const transaction = db.prepare('SELECT * FROM transactions WHERE id = ?').get(transactionId) as TransactionRow | undefined;
+    if (!transaction) {
+      db.exec('ROLLBACK');
+      notFound(res, 'Transaction not found');
+      return;
+    }
+    
+    // Check if the user is the one who created it
+    if (transaction.buyer_id !== userId && transaction.seller_id !== userId) {
+      db.exec('ROLLBACK');
+      forbidden(res, 'Not authorized to revoke this transaction');
+      return;
+    }
+
+    if (transaction.status !== 'pending' && transaction.status !== 'active') {
+      db.exec('ROLLBACK');
+      badRequest(res, `Cannot revoke transaction in '${transaction.status}' state`);
+      return;
+    }
+
+    // Delete the transaction
+    db.prepare('DELETE FROM transactions WHERE id = ?').run(transaction.id);
+
+    db.exec('COMMIT');
+    ok(res, { message: 'Transaction revoked' });
+  } catch (err) {
+    try { db.exec('ROLLBACK'); } catch { /* ignore */ }
+    console.error('Failed to revoke transaction:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 }

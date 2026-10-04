@@ -110,7 +110,6 @@ interface FilterPanelProps {
   category: string;
   mode: string;
   semester: string;
-  maxPrice: string;
   sort: string;
   setFilter: (key: string, value: string) => void;
   clearAll: () => void;
@@ -123,7 +122,6 @@ function FilterPanel({
   category,
   mode,
   semester,
-  maxPrice,
   sort,
   setFilter,
   clearAll,
@@ -170,12 +168,16 @@ function FilterPanel({
                 key={c}
                 type="button"
                 onClick={() => setFilter('category', active ? '' : c)}
-                className={`badge text-[10px] px-3 py-1.5 cursor-pointer transition-all border-[2px] border-black flex items-center gap-1 ${
-                  active ? 'bg-black text-[#FFE600]' : 'bg-white text-black'
+                className={`badge text-[10px] px-3 py-1.5 cursor-pointer transition-colors border-[2px] border-black flex items-center gap-1 ${
+                  active ? '' : 'bg-white text-black hover:bg-gray-100'
                 }`}
-                style={active ? {} : { ':hover': { backgroundColor: meta.color } } as any}
-                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = meta.color; }}
-                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = '#fff'; }}
+                style={active ? {
+                  backgroundColor: meta.color,
+                  color: '#000',
+                  boxShadow: '2px 2px 0 0 #000'
+                } : {
+                  color: '#000'
+                }}
               >
                 <span>{meta.emoji}</span>
                 <span>{meta.label}</span>
@@ -224,18 +226,7 @@ function FilterPanel({
         </div>
       </div>
 
-      <div>
-        <p className="text-[10px] font-black uppercase tracking-widest text-black mb-2 font-mono">Max price (₹)</p>
-        <input
-          type="number"
-          min={0}
-          className="input py-2.5 text-sm w-full"
-          placeholder="Any budget"
-          value={maxPrice}
-          onChange={e => setFilter('maxPrice', e.target.value)}
-        />
-        <p className="text-[10px] text-black/50 mt-1.5 font-medium">Applies to items listed for sale</p>
-      </div>
+
 
       <div>
         <p className="text-[10px] font-black uppercase tracking-widest text-black mb-2 font-mono">Sort by</p>
@@ -274,6 +265,7 @@ export default function HomePage() {
     completedTransactions: 0,
   });
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const category = params.get('category') ?? '';
   const mode = params.get('mode') ?? '';
@@ -359,7 +351,6 @@ export default function HomePage() {
     category,
     mode,
     semester,
-    maxPrice,
     sort,
     setFilter,
     clearAll,
@@ -412,7 +403,7 @@ export default function HomePage() {
 
             {/* Category chips */}
             <div className="flex flex-wrap justify-center gap-2">
-              {HERO_CATEGORIES.map(({ key, label, icon: Icon }, i) => {
+              {HERO_CATEGORIES.map(({ key, label }, i) => {
                 const meta = CATEGORY_META[key];
                 const active = category === key;
                 return (
@@ -423,16 +414,18 @@ export default function HomePage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.06 + i * 0.04 }}
                     onClick={() => toggleCategoryChip(key)}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide border-[2px] border-black transition-all duration-100 cursor-pointer"
-                    style={{
-                      backgroundColor: active ? '#000' : '#fff',
-                      color: active ? meta.color : '#000',
-                      boxShadow: active ? '3px 3px 0 0 #000' : '2px 2px 0 0 #000',
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide border-[2px] border-black transition-colors duration-200 cursor-pointer ${
+                      active ? '' : 'bg-white hover:bg-gray-100'
+                    }`}
+                    style={active ? {
+                      backgroundColor: '#000',
+                      color: meta.color,
+                      boxShadow: '3px 3px 0 0 #000'
+                    } : {
+                      color: '#000',
+                      boxShadow: '2px 2px 0 0 #000'
                     }}
-                    onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.backgroundColor = meta.color; } }}
-                    onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.backgroundColor = '#fff'; (e.currentTarget as HTMLElement).style.color = '#000'; } }}
                   >
-                    <Icon size={13} />
                     <span>{meta.emoji}</span>
                     {label}
                   </motion.button>
@@ -503,11 +496,18 @@ export default function HomePage() {
             </div>
             <button
               type="button"
-              onClick={() => setFilterDrawerOpen(true)}
-              className="lg:hidden btn-ghost text-xs py-2.5 px-4 flex items-center gap-2"
+              id="toggle-filters-btn"
+              onClick={() => {
+                if (window.innerWidth < 1024) {
+                  setFilterDrawerOpen(true);
+                } else {
+                  setSidebarOpen(prev => !prev);
+                }
+              }}
+              className="btn-ghost text-xs py-2.5 px-4 flex items-center gap-2"
             >
               <Filter size={16} />
-              Filters
+              {sidebarOpen ? 'Hide Filters' : 'Show Filters'}
               {hasFilters && (
                 <span className="w-2 h-2 bg-black inline-block" aria-hidden />
               )}
@@ -515,9 +515,21 @@ export default function HomePage() {
           </div>
 
           <div className="flex gap-8 items-start">
-            <aside className="hidden lg:block w-72 shrink-0 sticky top-24 bg-white border-[3px] border-black shadow-[4px_4px_0_0_#000] p-5">
-              <FilterPanel {...filterPanelProps} />
-            </aside>
+            <AnimatePresence initial={false}>
+              {sidebarOpen && (
+                <motion.aside
+                  key="filter-sidebar"
+                  initial={{ opacity: 0, width: 0, marginRight: -32 }}
+                  animate={{ opacity: 1, width: 288, marginRight: 0 }}
+                  exit={{ opacity: 0, width: 0, marginRight: -32 }}
+                  transition={{ duration: 0.22, ease: 'easeInOut' }}
+                  className="hidden lg:block shrink-0 sticky top-24 bg-white border-[3px] border-black shadow-[4px_4px_0_0_#000] p-5 overflow-hidden overflow-y-auto"
+                  style={{ minWidth: 0, maxHeight: 'calc(100vh - 7rem)' }}
+                >
+                  <FilterPanel {...filterPanelProps} />
+                </motion.aside>
+              )}
+            </AnimatePresence>
 
             <div className="flex-1 min-w-0">
               {loading ? (

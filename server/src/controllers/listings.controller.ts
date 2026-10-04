@@ -48,10 +48,10 @@ export function getListings(req: AuthRequest, res: Response): void {
     sql += ' AND (l.title LIKE ? OR l.description LIKE ? OR l.course LIKE ?)';
     params.push(`%${q}%`, `%${q}%`, `%${q}%`);
   }
-  if (category)  { sql += ' AND l.category = ?';   params.push(category); }
-  if (semester)  { sql += ' AND l.semester = ?';    params.push(semester); }
-  if (mode)      { sql += ' AND l.mode = ?';        params.push(mode); }
-  if (maxPrice)  {
+  if (category) { sql += ' AND l.category = ?'; params.push(category); }
+  if (semester) { sql += ' AND l.semester = ?'; params.push(semester); }
+  if (mode) { sql += ' AND l.mode = ?'; params.push(mode); }
+  if (maxPrice) {
     const p = Number(maxPrice);
     if (!Number.isFinite(p) || p < 0) { badRequest(res, 'maxPrice must be a non-negative number'); return; }
     sql += ' AND l.price <= ?';
@@ -59,8 +59,8 @@ export function getListings(req: AuthRequest, res: Response): void {
   }
 
   const ORDER: Record<string, string> = {
-    newest:     'l.created_at DESC',
-    price_asc:  'l.price ASC',
+    newest: 'l.created_at DESC',
+    price_asc: 'l.price ASC',
     price_desc: 'l.price DESC',
   };
   sql += ` ORDER BY ${ORDER[sort] ?? ORDER.newest}`;
